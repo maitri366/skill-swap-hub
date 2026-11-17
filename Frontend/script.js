@@ -333,72 +333,119 @@ document.getElementById("skillForm").addEventListener(
 
 loadUsers();
 
-
 document.addEventListener("DOMContentLoaded", () => {
   const searchInput = document.getElementById("skillSearchInput");
   const dropdown = document.getElementById("searchDropdown");
 
   if (!searchInput || !dropdown) return;
 
-  // Sabhi skill cards ko target karein (apne card class name ke hisab se adjust karein)
-  const getCards = () => Array.from(document.querySelectorAll(".skill-card, .card"));
+  // 1. Dynamically sabhi profile cards dhundhne ka smart function (bina class name par depend kiye)
+  function getProfileCards() {
+    const allElements = document.querySelectorAll("div, article, section");
+    const cards = [];
 
-  // Cards se unique skills extract karne ka function
-  function getAvailableSkills() {
-    const skillsSet = new Set();
-    const cards = getCards();
-
-    cards.forEach((card) => {
-      const text = card.innerText;
-      // "Can Teach: Python" aur "Wants to Learn: Guitar" se skill nikalna
-      const teachMatch = text.match(/Can Teach:\s*([^\n]+)/i);
-      const learnMatch = text.match(/Wants to Learn:\s*([^\n]+)/i);
-
-      if (teachMatch && teachMatch[1]) skillsSet.add(teachMatch[1].trim());
-      if (learnMatch && learnMatch[1]) skillsSet.add(learnMatch[1].trim());
+    allElements.forEach((el) => {
+      // Sirf wahi smallest container pick karein jisme "Can Teach:" aur "Wants to Learn:" dono likhe hain
+      const text = el.innerText || "";
+      if (text.includes("Can Teach:") && text.includes("Wants to Learn:")) {
+        // Check karein ki iske kisi child ke paas yeh dono text na hon (taaki parent grid container select na ho)
+        const hasChildCard = Array.from(el.children).some(
+          (child) =>
+            (child.innerText || "").includes("Can Teach:") &&
+            (child.innerText || "").includes("Wants to Learn:")
+        );
+        if (!hasChildCard) {
+          cards.push(el);
+        }
+      }
     });
 
-    return Array.from(skillsSet);
+    return cards;
   }
 
-  // Cards ko filter karne ka function
-  function filterCards(query) {
-    const lowerQuery = query.toLowerCase().trim();
-    const cards = getCards();
+  // 2. Cards se saari unique skills nikal kar alphabetically sort karna
+  function getSortedAvailableSkills() {
+    const skillsMap = new Map(); // Case-insensitive uniqueness ke liye (e.g. "java" aur "Java" ek hi maane jayein)
+    const cards = getProfileCards();
 
     cards.forEach((card) => {
-      const cardText = card.innerText.toLowerCase();
-      if (cardText.includes(lowerQuery)) {
-        card.style.display = ""; // Show card
+      const lines = card.innerText.split("\n");
+      lines.forEach((line) => {
+        if (line.includes("Can Teach:")) {
+          const skill = line.split("Can Teach:")[1].trim();
+          if (skill) skillsMap.set(skill.toLowerCase(), skill);
+        }
+        if (line.includes("Wants to Learn:")) {
+          const skill = line.split("Wants to Learn:")[1].trim();
+          if (skill) skillsMap.set(skill.toLowerCase(), skill);
+        }
+      });
+    });
+
+    // Alphabetical sorting (A to Z)
+    return Array.from(skillsMap.values()).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+  }
+
+  // 3. Profiles ko filter karne ka function (Enter dabane ya Dropdown select karne par chalega)
+  function filterProfilesBySkill(selectedSkill) {
+    const query = selectedSkill.toLowerCase().trim();
+    const cards = getProfileCards();
+
+    cards.forEach((card) => {
+      if (!query) {
+        card.style.display = ""; // Agar search box khali hai toh sabhi cards dikhayein
+        return;
+      }
+
+      let teachSkill = "";
+      let learnSkill = "";
+      const lines = card.innerText.split("\n");
+
+      lines.forEach((line) => {
+        if (line.includes("Can Teach:")) {
+          teachSkill = line.split("Can Teach:")[1].trim().toLowerCase();
+        }
+        if (line.includes("Wants to Learn:")) {
+          learnSkill = line.split("Wants to Learn:")[1].trim().toLowerCase();
+        }
+      });
+
+      // Exact ya partial match check karein
+      if (teachSkill.includes(query) || learnSkill.includes(query)) {
+        card.style.display = "";
       } else {
-        card.style.display = "none"; // Hide card
+        card.style.display = "none";
       }
     });
   }
 
-  // Dropdown render karne ka function
-  function renderDropdown(query) {
-    const allSkills = getAvailableSkills();
-    const lowerQuery = query.toLowerCase().trim();
+  // 4. Dropdown render aur sort karne ka function
+  function updateDropdown(query) {
+    const allSkills = getSortedAvailableSkills();
+    const cleanQuery = query.toLowerCase().trim();
 
-    const filteredSkills = allSkills.filter((skill) =>
-      skill.toLowerCase().includes(lowerQuery)
-    );
+    // Agar query empty hai toh SAARI available skills dikhayein
+    // Agar query typed hai (jaise "J") toh sirf us letter se START hone wali skills dikhayein
+    const matchedSkills = cleanQuery === ""
+      ? allSkills
+      : allSkills.filter((skill) => skill.toLowerCase().startsWith(cleanQuery));
 
     dropdown.innerHTML = "";
 
-    if (filteredSkills.length === 0) {
+    if (matchedSkills.length === 0) {
       dropdown.innerHTML = `<div class="dropdown-item" style="color:#9ca3af; cursor:default;">No matching skills found</div>`;
     } else {
-      filteredSkills.forEach((skill) => {
+      matchedSkills.forEach((skill) => {
         const item = document.createElement("div");
         item.className = "dropdown-item";
         item.innerHTML = `<span>${skill}</span> <span class="dropdown-badge">Skill</span>`;
 
-        // Dropdown item par click karne par
+        // Dropdown ke kisi skill par click karne par
         item.addEventListener("click", () => {
           searchInput.value = skill;
-          filterCards(skill);
+          filterProfilesBySkill(skill);
           dropdown.classList.add("hidden");
         });
 
@@ -409,19 +456,38 @@ document.addEventListener("DOMContentLoaded", () => {
     dropdown.classList.remove("hidden");
   }
 
-  // Input type karte waqt
+  // --- Event Listeners ---
+
+  // Search box par click ya focus karte hi saari available skills dikhayein
+  searchInput.addEventListener("focus", () => {
+    updateDropdown(searchInput.value);
+  });
+
+  searchInput.addEventListener("click", () => {
+    updateDropdown(searchInput.value);
+  });
+
+  // Type karte waqt dropdown filter/sort karein
   searchInput.addEventListener("input", (e) => {
     const val = e.target.value;
-    filterCards(val);
-    renderDropdown(val);
+    updateDropdown(val);
+
+    // Agar user ne poora text delete kar diya hai toh saare cards wapas dikha dein
+    if (val.trim() === "") {
+      filterProfilesBySkill("");
+    }
   });
 
-  // Search box par click/focus karte hi saari available skills ka dropdown dikhayein
-  searchInput.addEventListener("focus", () => {
-    renderDropdown(searchInput.value);
+  // ENTER key dabane par profiles filter karein aur dropdown band karein
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault(); // Form submit/page reload rokne ke liye
+      filterProfilesBySkill(searchInput.value);
+      dropdown.classList.add("hidden");
+    }
   });
 
-  // Bahar click karne par dropdown band karein
+  // Search box ke bahar click karne par dropdown band karein
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".search-wrapper")) {
       dropdown.classList.add("hidden");
