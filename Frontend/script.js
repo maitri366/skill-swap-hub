@@ -332,3 +332,99 @@ document.getElementById("skillForm").addEventListener(
 // ------------------------------------------
 
 loadUsers();
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.getElementById("skillSearchInput");
+  const dropdown = document.getElementById("searchDropdown");
+
+  if (!searchInput || !dropdown) return;
+
+  // Sabhi skill cards ko target karein (apne card class name ke hisab se adjust karein)
+  const getCards = () => Array.from(document.querySelectorAll(".skill-card, .card"));
+
+  // Cards se unique skills extract karne ka function
+  function getAvailableSkills() {
+    const skillsSet = new Set();
+    const cards = getCards();
+
+    cards.forEach((card) => {
+      const text = card.innerText;
+      // "Can Teach: Python" aur "Wants to Learn: Guitar" se skill nikalna
+      const teachMatch = text.match(/Can Teach:\s*([^\n]+)/i);
+      const learnMatch = text.match(/Wants to Learn:\s*([^\n]+)/i);
+
+      if (teachMatch && teachMatch[1]) skillsSet.add(teachMatch[1].trim());
+      if (learnMatch && learnMatch[1]) skillsSet.add(learnMatch[1].trim());
+    });
+
+    return Array.from(skillsSet);
+  }
+
+  // Cards ko filter karne ka function
+  function filterCards(query) {
+    const lowerQuery = query.toLowerCase().trim();
+    const cards = getCards();
+
+    cards.forEach((card) => {
+      const cardText = card.innerText.toLowerCase();
+      if (cardText.includes(lowerQuery)) {
+        card.style.display = ""; // Show card
+      } else {
+        card.style.display = "none"; // Hide card
+      }
+    });
+  }
+
+  // Dropdown render karne ka function
+  function renderDropdown(query) {
+    const allSkills = getAvailableSkills();
+    const lowerQuery = query.toLowerCase().trim();
+
+    const filteredSkills = allSkills.filter((skill) =>
+      skill.toLowerCase().includes(lowerQuery)
+    );
+
+    dropdown.innerHTML = "";
+
+    if (filteredSkills.length === 0) {
+      dropdown.innerHTML = `<div class="dropdown-item" style="color:#9ca3af; cursor:default;">No matching skills found</div>`;
+    } else {
+      filteredSkills.forEach((skill) => {
+        const item = document.createElement("div");
+        item.className = "dropdown-item";
+        item.innerHTML = `<span>${skill}</span> <span class="dropdown-badge">Skill</span>`;
+
+        // Dropdown item par click karne par
+        item.addEventListener("click", () => {
+          searchInput.value = skill;
+          filterCards(skill);
+          dropdown.classList.add("hidden");
+        });
+
+        dropdown.appendChild(item);
+      });
+    }
+
+    dropdown.classList.remove("hidden");
+  }
+
+  // Input type karte waqt
+  searchInput.addEventListener("input", (e) => {
+    const val = e.target.value;
+    filterCards(val);
+    renderDropdown(val);
+  });
+
+  // Search box par click/focus karte hi saari available skills ka dropdown dikhayein
+  searchInput.addEventListener("focus", () => {
+    renderDropdown(searchInput.value);
+  });
+
+  // Bahar click karne par dropdown band karein
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".search-wrapper")) {
+      dropdown.classList.add("hidden");
+    }
+  });
+});
