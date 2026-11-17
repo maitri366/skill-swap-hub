@@ -3,7 +3,7 @@
 // SKILL SWAP HUB - FRONTEND INTEGRATION
 // ==========================================
 
-const API = "/api";
+const API = "https://skill-swap-backend-h7jp.onrender.com/api";
 let users = [];
 let currentUser = JSON.parse(localStorage.getItem("skillSwapUser") || "null");
 
